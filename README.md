@@ -38,7 +38,7 @@ http://localhost:5050/bitcoin-tax
 
 ## Included Feature Flow
 
-- Upload supported CSV, XLSX, and PDF files
+- Upload supported CSV and PDF files
 - Accept or reject each upload immediately
 - Mark wallets and addresses you own
 - Review outgoing send transactions and mark real spending

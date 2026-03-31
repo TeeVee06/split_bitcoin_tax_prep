@@ -12,7 +12,7 @@ Example: Coinbase, Kraken, Gemini, Cash App
 
 ## File Format
 
-Example: CSV, XLSX, 1099-DA PDF
+Example: CSV, 1099-DA PDF
 
 ## Official Documentation
 

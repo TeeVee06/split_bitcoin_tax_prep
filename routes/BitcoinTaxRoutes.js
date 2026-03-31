@@ -284,7 +284,7 @@ router.post('/bitcoin-tax/upload', (req, res) => {
     if (!files.length) {
       return renderBitcoinTaxPage(req, res, {
         session,
-        formError: 'Upload at least one CSV, XLSX, or PDF document to continue.',
+        formError: 'Upload at least one CSV or PDF document to continue.',
       });
     }
 
@@ -296,7 +296,7 @@ router.post('/bitcoin-tax/upload', (req, res) => {
         addRejectedDocument(session, file, {
           accepted: false,
           documentId,
-          rejectionReason: `Unsupported file type ${extension || '(none)'}. Upload CSV, XLSX, or PDF files only.`,
+          rejectionReason: `Unsupported file type ${extension || '(none)'}. Upload CSV or PDF files only.`,
         });
         continue;
       }
