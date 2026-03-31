@@ -1,0 +1,36 @@
+{
+  "name": "split_bitcoin_tax_prep",
+  "version": "0.1.0",
+  "private": false,
+  "description": "Standalone Bitcoin tax prep beta web app.",
+  "main": "server.js",
+  "scripts": {
+    "dev": "nodemon server.js",
+    "start": "node server.js"
+  },
+  "keywords": [
+    "bitcoin",
+    "tax",
+    "form-8949",
+    "schedule-d"
+  ],
+  "author": "contributors",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "archiver": "^7.0.1",
+    "big.js": "^7.0.1",
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^17.2.1",
+    "ejs": "^3.1.10",
+    "express": "^5.1.0",
+    "multer": "^2.0.2",
+    "pdf-lib": "^1.17.1",
+    "pdfkit": "^0.18.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.10"
+  }
+}
