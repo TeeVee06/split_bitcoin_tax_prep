@@ -43,3 +43,14 @@ Use the detailed parser guide in [docs/parser-contribution-guide.md](docs/parser
 - Keep PR descriptions concrete.
 - Include the provider name and file format in the PR title.
 - Mention what was added, what was intentionally rejected, and any current limitations.
+
+## Testing
+
+- Run the local test suite before opening a pull request:
+
+```bash
+npm test
+```
+
+- GitHub Actions runs the same test suite on pushes and pull requests.
+- If you change parser behavior, tax calculation behavior, or the upload/review flow, add or update tests with the change.

@@ -36,6 +36,12 @@ npm run dev
 http://localhost:5050/bitcoin-tax
 ```
 
+## Run Tests
+
+```bash
+npm test
+```
+
 ## Included Feature Flow
 
 - Upload supported CSV and PDF files
