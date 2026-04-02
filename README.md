@@ -49,6 +49,7 @@ http://localhost:5050/bitcoin-tax
 - Split CSV
 - Cash App 1099 form
 - Cash App transaction CSV
+- Strike CSV
 
 ## Contributing
 

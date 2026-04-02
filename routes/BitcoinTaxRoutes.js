@@ -186,7 +186,6 @@ function buildTaxSessionView(session) {
     detectedIdentifiers,
     counts: {
       accepted: acceptedDocuments.length,
-      rejected: rejectedDocuments.length,
       identifiers: detectedIdentifiers.length,
       normalizedRecords: acceptedDocuments.reduce(
         (total, document) => total + Number(document.normalizedRecordCount || 0),
@@ -263,7 +262,7 @@ router.post('/bitcoin-tax/upload', (req, res) => {
   upload.array('documents', MAX_DOCUMENT_COUNT)(req, res, async (error) => {
     const session = getOrCreateTaxSession(req, res);
     let acceptedCount = 0;
-    let rejectedCount = 0;
+    let hadRejectedUpload = false;
 
     if (session.phase !== 'upload') {
       return renderBitcoinTaxPage(req, res, {
@@ -298,6 +297,7 @@ router.post('/bitcoin-tax/upload', (req, res) => {
           documentId,
           rejectionReason: `Unsupported file type ${extension || '(none)'}. Upload CSV or PDF files only.`,
         });
+        hadRejectedUpload = true;
         continue;
       }
 
@@ -311,7 +311,7 @@ router.post('/bitcoin-tax/upload', (req, res) => {
         acceptedCount += 1;
       } else {
         addRejectedDocument(session, file, parsedDocument);
-        rejectedCount += 1;
+        hadRejectedUpload = true;
       }
     }
 
@@ -320,8 +320,8 @@ router.post('/bitcoin-tax/upload', (req, res) => {
       phaseNotice: acceptedCount
         ? `Accepted ${acceptedCount} uploaded ${acceptedCount === 1 ? 'file' : 'files'}. Keep going, or move to wallet review when you are done.`
         : null,
-      formError: rejectedCount
-        ? `${rejectedCount} uploaded ${rejectedCount === 1 ? 'document was' : 'documents were'} rejected and not added to this session.`
+      formError: hadRejectedUpload
+        ? 'Some uploaded files were rejected and not added to this session.'
         : null,
     });
   });
@@ -352,6 +352,53 @@ router.post('/bitcoin-tax/back-to-upload', (req, res) => {
   return renderBitcoinTaxPage(req, res, {
     session,
     phaseNotice: 'You are back in the upload phase. You can keep adding documents.',
+  });
+});
+
+router.post('/bitcoin-tax/back-to-wallet-review', (req, res) => {
+  const session = getOrCreateTaxSession(req, res);
+
+  if (!session.acceptedDocuments.length) {
+    return renderBitcoinTaxPage(req, res, {
+      session,
+      formError: 'Upload at least one accepted document before reviewing wallets.',
+    });
+  }
+
+  startWalletReview(session);
+
+  return renderBitcoinTaxPage(req, res, {
+    session,
+    phaseNotice: 'Review your wallet selections and make any changes you need.',
+  });
+});
+
+router.post('/bitcoin-tax/back-to-send-review', (req, res) => {
+  const session = getOrCreateTaxSession(req, res);
+
+  if (!session.acceptedDocuments.length) {
+    return renderBitcoinTaxPage(req, res, {
+      session,
+      formError: 'Upload at least one accepted document before reviewing outgoing sends.',
+    });
+  }
+
+  const reviewableSendTransactions = listReviewableSendTransactions(session);
+
+  if (!reviewableSendTransactions.length) {
+    startCalculationReady(session);
+
+    return renderBitcoinTaxPage(req, res, {
+      session,
+      phaseNotice: 'There are no outgoing BTC sends that need review in this session.',
+    });
+  }
+
+  startSendReview(session);
+
+  return renderBitcoinTaxPage(req, res, {
+    session,
+    phaseNotice: 'Review the outgoing BTC sends that may represent reportable spending.',
   });
 });
 

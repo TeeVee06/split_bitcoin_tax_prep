@@ -17,7 +17,7 @@
   <%
     const session = (typeof taxSession !== 'undefined' && taxSession) ? taxSession : {
       phase: 'upload',
-      counts: { accepted: 0, rejected: 0, identifiers: 0, normalizedRecords: 0, ownedIdentifiers: 0, reviewableSends: 0, spendingMarked: 0 },
+      counts: { accepted: 0, identifiers: 0, normalizedRecords: 0, ownedIdentifiers: 0, reviewableSends: 0, spendingMarked: 0 },
       acceptedDocuments: [],
       rejectedDocuments: [],
       detectedIdentifiers: [],
@@ -28,427 +28,570 @@
       ? sourceCoverageSummary
       : { testedAndVerified: [], supportedButUntested: [] };
     const calculationResult = session.calculationResult || null;
-    const currentPhaseTitle = session.phase === 'wallet-review'
-      ? 'Select owned wallets'
-      : session.phase === 'send-review'
-        ? 'Review outgoing sends'
-      : session.phase === 'calculation-ready'
-        ? 'Draft calculations'
-        : 'Upload documents';
+    const hasAcceptedDocuments = session.acceptedDocuments.length > 0;
+    const hasRejectedDocuments = session.rejectedDocuments.length > 0;
+    const hasReviewableSends = session.counts.reviewableSends > 0;
+    const formatLabel = (value) => String(value || '')
+      .replace(/[_-]+/g, ' ')
+      .replace(/\b\w/g, (letter) => letter.toUpperCase());
+    const identifierGroups = session.detectedIdentifiers.reduce((groups, identifier) => {
+      const key = identifier.identifierType || 'identifier';
+      if (!groups[key]) {
+        groups[key] = [];
+      }
+      groups[key].push(identifier);
+      return groups;
+    }, {});
+    const progressSteps = [
+      {
+        number: 1,
+        title: 'Upload documents',
+        subtitle: 'Add and parse your files',
+        state: session.phase === 'upload' ? 'current' : 'complete',
+      },
+      {
+        number: 2,
+        title: 'Confirm wallets',
+        subtitle: 'Mark what you own',
+        state: session.phase === 'wallet-review'
+          ? 'current'
+          : (session.phase === 'send-review' || session.phase === 'calculation-ready')
+            ? 'complete'
+            : 'upcoming',
+      },
+      {
+        number: 3,
+        title: 'Review sends',
+        subtitle: hasReviewableSends ? 'Mark actual spending' : 'Skipped if none are found',
+        state: session.phase === 'send-review'
+          ? 'current'
+          : session.phase === 'calculation-ready'
+            ? (hasReviewableSends ? 'complete' : 'skipped')
+            : 'upcoming',
+      },
+      {
+        number: 4,
+        title: 'Draft results',
+        subtitle: 'Review and download',
+        state: session.phase === 'calculation-ready' ? 'current' : 'upcoming',
+      },
+    ];
+    const currentStep = progressSteps.find((step) => step.state === 'current') || progressSteps[0];
+    const hasSidebar = session.phase === 'upload' || (session.phase === 'calculation-ready' && calculationResult);
+    const stageDescription = session.phase === 'upload'
+      ? 'Start by adding the documents you already have. Once the import looks right, move forward.'
+      : session.phase === 'wallet-review'
+        ? 'Confirm which wallets and addresses belong to you so internal transfers are not treated as taxable spending.'
+        : session.phase === 'send-review'
+          ? 'Look only at outgoing BTC sends and mark the ones that were true spending. Unchecked sends stay non-spending.'
+          : 'Review the draft tax output, note any missing information, and download the package for your records or tax professional.';
   %>
 
   <main class="tax-page">
-    <section class="tax-hero">
+    <header class="tax-hero">
       <div class="tax-hero__top">
         <div class="brand-mark" aria-label="Bitcoin tax prep beta">
           <span class="brand-mark__text">split_bitcoin_tax_prep</span>
         </div>
+        <form action="/bitcoin-tax/reset" method="post">
+          <button class="hero-link" type="submit">Clear session</button>
+        </form>
       </div>
 
       <div class="tax-hero__copy">
         <p class="eyebrow">Bitcoin Tax Prep</p>
-        <h1 class="tax-hero__title">Trying to make tax reporting as easy as possible for Bitcoin transactions.</h1>
+        <h1 class="tax-hero__title"> Bitcoin Tax Reporting</h1>
         <p class="tax-hero__subtitle">
-          This project is still in beta and is for testing only. Any files, forms, or calculations produced here should be reviewed with a qualified tax professional before they are used for tax reporting or filing. Your uploads are processed only during your session and are not retained after your work is complete.
+          Upload your documents, confirm the wallets you own, review reportable sends, and then download a draft package.
+          This beta is still for testing only, so everything generated here should be reviewed with a qualified tax professional.
         </p>
       </div>
+    </header>
+
+    <section class="progress-card" aria-label="Workflow progress">
+      <% progressSteps.forEach((step) => { %>
+        <div class="progress-step progress-step--<%= step.state %>">
+          <span class="progress-step__number"><%= step.number %></span>
+          <div class="progress-step__copy">
+            <strong><%= step.title %></strong>
+            <span><%= step.subtitle %></span>
+          </div>
+        </div>
+      <% }); %>
     </section>
 
-    <section class="tax-shell">
-      <% if (phaseNotice) { %>
-        <article class="results-card">
-          <p class="section-kicker">Session Update</p>
-          <p><%= phaseNotice %></p>
-        </article>
-      <% } %>
+    <% if (phaseNotice || formError) { %>
+      <section class="flash-stack">
+        <% if (phaseNotice) { %>
+          <article class="flash flash--notice">
+            <p class="section-kicker">Session Update</p>
+            <p><%= phaseNotice %></p>
+          </article>
+        <% } %>
 
-      <% if (formError) { %>
-        <article class="results-card">
-          <p class="section-kicker">Needs Attention</p>
-          <div class="form-message form-message--error"><%= formError %></div>
-        </article>
-      <% } %>
-
-      <div class="info-grid">
-        <article class="info-card info-card--wide">
-          <p class="section-kicker">Workflow</p>
-          <h2>One phase at a time.</h2>
-          <div class="flow-steps">
-            <div class="flow-step">
-              <span class="flow-step__number">1</span>
-              <strong>Upload</strong>
-              <p>Add documents like 10-99s and wallet csv files you received from exchanges and wallet providers.</p>
-            </div>
-            <div class="flow-step">
-              <span class="flow-step__number">2</span>
-              <strong>Accept or reject</strong>
-              <p>Each file is parsed immediately and the relevant data extracted.</p>
-            </div>
-            <div class="flow-step">
-              <span class="flow-step__number">3</span>
-              <strong>Select owned wallets</strong>
-              <p>Mark the wallets and addresses found in accepted files that you own. This will help identify transactions between wallets you own and do not need to report.</p>
-            </div>
-            <div class="flow-step">
-              <span class="flow-step__number">4</span>
-              <strong>Review sends</strong>
-              <p>Mark outgoing BTC sends that were actual spending and leave non-spending sends unchecked.</p>
-            </div>
-          </div>
-        </article>
-
-        <article class="info-card">
-          <p class="section-kicker">Supported Documents</p>
-          <h2>Working to cover as many wallets and exchanges as possible</h2>
-          <div class="support-list">
-            <div class="support-item">
-              <strong>Tested and verified</strong>
-              <p><%= sourceCoverage.testedAndVerified.length ? sourceCoverage.testedAndVerified.map((item) => item.coverageLabel).join(', ') : 'None yet' %></p>
-            </div>
-            <div class="support-item">
-              <strong>Supported but untested</strong>
-              <p><%= sourceCoverage.supportedButUntested.length ? sourceCoverage.supportedButUntested.map((item) => item.coverageLabel).join(', ') : 'None' %></p>
-            </div>
-          </div>
-        </article>
-      </div>
-
-      <section class="results-grid" aria-label="Session overview">
-        <article class="results-card">
-          <p class="section-kicker">Session Stats</p>
-          <h2><%= session.counts.accepted %> accepted document<%= session.counts.accepted === 1 ? '' : 's' %></h2>
-          <div class="result-list">
-            <div class="result-item result-item--accepted">
-              <strong><%= session.counts.normalizedRecords %> normalized records</strong>
-              <span>Rows extracted from accepted documents so far.</span>
-            </div>
-            <div class="result-item">
-              <strong><%= session.counts.identifiers %> wallet or address identifiers</strong>
-              <span>Raw identifiers found in accepted documents.</span>
-            </div>
-            <div class="result-item">
-              <strong><%= session.counts.ownedIdentifiers %> marked as owned</strong>
-              <span>Selections captured from the wallet review step.</span>
-            </div>
-            <div class="result-item">
-              <strong><%= session.counts.spendingMarked %> outgoing send<%= session.counts.spendingMarked === 1 ? '' : 's' %> marked as spending</strong>
-              <span>Unchecked send rows remain non-spending in this beta flow.</span>
-            </div>
-          </div>
-        </article>
-
-        <article class="results-card">
-          <p class="section-kicker">Current Phase</p>
-          <h2><%= currentPhaseTitle %></h2>
-          <p>
-            <% if (session.phase === 'upload') { %>
-              Keep uploading files until you are done, then move into wallet review.
-            <% } else if (session.phase === 'wallet-review') { %>
-              Review the raw identifiers parsed from accepted documents and mark the ones you own.
-            <% } else if (session.phase === 'send-review') { %>
-              Review outgoing BTC send transactions and check only the ones that were actual spending.
-            <% } else { %>
-              Wallet and send selections are saved and the draft calculation pass is ready for review.
-            <% } %>
-          </p>
-
-          <div class="result-list">
-            <% if (session.phase === 'upload') { %>
-              <form action="/bitcoin-tax/done-uploading" method="post">
-                <button class="upload-button" type="submit" <%= session.counts.accepted ? '' : 'disabled' %>>I've uploaded all my documents</button>
-              </form>
-            <% } else { %>
-              <form action="/bitcoin-tax/back-to-upload" method="post">
-                <button class="upload-button" type="submit">Back to uploads</button>
-              </form>
-            <% } %>
-
-            <form action="/bitcoin-tax/reset" method="post">
-              <button class="hero-link" type="submit">Clear session</button>
-            </form>
-          </div>
-        </article>
+        <% if (formError) { %>
+          <article class="flash flash--error">
+            <p class="section-kicker">Needs Attention</p>
+            <div class="form-message form-message--error"><%= formError %></div>
+          </article>
+        <% } %>
       </section>
+    <% } %>
 
-      <% if (session.phase === 'upload') { %>
-        <section class="upload-card" aria-label="Bitcoin tax intake upload">
-          <div class="upload-card__copy">
-            <p class="section-kicker">Upload Intake</p>
-            <h2>CSV and PDF</h2>
-            <p>
-              Upload up to 12 files at a time. We currently accept recognized `CSV` and `PDF` documents up to 15 MB each.
-            </p>
-          </div>
+    <section class="tax-workspace <%= hasSidebar ? '' : 'tax-workspace--single' %>">
+      <article class="stage-card stage-card--main">
+        <div class="stage-header">
+          <p class="section-kicker">Step <%= currentStep.number %></p>
+          <h2><%= currentStep.title %></h2>
+          <p class="stage-header__lead"><%= stageDescription %></p>
+        </div>
 
-          <form class="upload-form" action="/bitcoin-tax/upload" method="post" enctype="multipart/form-data">
-            <label class="upload-dropzone" for="documents">
-              <span class="upload-dropzone__title">Choose documents</span>
-              <span class="upload-dropzone__text">Split CSV, exchange exports, broker CSVs, and recognized tax PDFs. Selecting files starts parsing right away.</span>
-            </label>
-
-            <input
-              id="documents"
-              class="upload-form__picker"
-              type="file"
-              name="documents"
-              multiple
-              accept=".csv,.pdf,application/pdf,text/csv"
-              onchange="if (this.files && this.files.length) this.form.submit()"
-            />
-          </form>
-        </section>
-      <% } %>
-
-      <% if (session.acceptedDocuments.length) { %>
-        <section class="results-card" aria-label="Document results">
-          <p class="section-kicker">Accepted Documents</p>
-          <h2><%= session.acceptedDocuments.length %> accepted file<%= session.acceptedDocuments.length === 1 ? '' : 's' %></h2>
-
-          <div class="result-list">
-            <% session.acceptedDocuments.forEach((document) => { %>
-              <div class="result-item result-item--accepted">
-                <strong><%= document.originalName %></strong>
-                <span><%= document.sourceDisplayName %> · <%= document.sizeText %></span>
-                <p><%= document.normalizedRecordCount %> normalized rows · <%= document.detectedIdentifierCount %> identifiers</p>
-                <% if (document.parseSummary) { %>
-                  <p>Parsed <%= document.parseSummary.parsedRows %> of <%= document.parseSummary.totalRows %> row<%= document.parseSummary.totalRows === 1 ? '' : 's' %>.</p>
-                  <% if (document.parseSummary.extractionConfidence) { %>
-                    <p>Extraction confidence: <%= document.parseSummary.extractionConfidence %>.</p>
-                  <% } %>
-                <% } %>
-                <% if (document.warnings && document.warnings.length) { %>
-                  <div class="warning-list">
-                    <% document.warnings.forEach((warning) => { %>
-                      <p><%= warning %></p>
-                    <% }); %>
-                  </div>
-                <% } %>
+        <% if (session.phase === 'upload') { %>
+          <section class="stage-block stage-block--upload">
+            <div class="upload-card">
+              <div class="upload-card__copy">
+                <p class="section-kicker">Upload Intake</p>
+                <h3>Add your source documents</h3>
+                <p>
+                  Upload up to 12 CSV or PDF files at a time. Each file can be up to 15 MB. As soon as you choose files,
+                  the parser runs and the session updates in place.
+                </p>
+                <ul class="check-list">
+                  <li>Use exchange exports, broker forms, and wallet CSVs you already received.</li>
+                  <li>Accepted files are used to build your wallet review and draft calculations.</li>
+                  <li>Rejected files stay visible here so you can fix gaps before continuing.</li>
+                </ul>
               </div>
-            <% }); %>
-          </div>
-        </section>
-      <% } %>
 
-      <% if (session.phase === 'wallet-review') { %>
-        <section class="results-card" aria-label="Wallet selection">
-          <p class="section-kicker">Wallet Review</p>
-          <h2>Mark the wallets and addresses you own.</h2>
-          <p>This is a raw list for V1. Check the identifiers that belong to you and optionally add a note.</p>
+              <form class="upload-form" action="/bitcoin-tax/upload" method="post" enctype="multipart/form-data">
+                <label class="upload-dropzone" for="documents">
+                  <span class="upload-dropzone__title">Choose documents</span>
+                  <span class="upload-dropzone__text">CSV and PDF files only. Selecting files starts parsing right away.</span>
+                </label>
+
+                <input
+                  id="documents"
+                  class="upload-form__picker"
+                  type="file"
+                  name="documents"
+                  multiple
+                  accept=".csv,.pdf,application/pdf,text/csv"
+                  onchange="if (this.files && this.files.length) this.form.submit()"
+                />
+              </form>
+            </div>
+          </section>
+
+          <section class="mini-stats" aria-label="Import summary">
+            <div class="mini-stat">
+              <strong><%= session.counts.accepted %></strong>
+              <span>Accepted document<%= session.counts.accepted === 1 ? '' : 's' %></span>
+            </div>
+            <div class="mini-stat">
+              <strong><%= session.counts.identifiers %></strong>
+              <span>Wallet or address clues</span>
+            </div>
+          </section>
+
+          <% if (hasAcceptedDocuments) { %>
+            <section class="stage-block">
+              <div class="section-heading">
+                <div>
+                  <p class="section-kicker">Import Review</p>
+                  <h3>Accepted documents</h3>
+                </div>
+                <form action="/bitcoin-tax/done-uploading" method="post">
+                  <button class="upload-button" type="submit">Continue to wallet review</button>
+                </form>
+              </div>
+
+              <div class="document-list">
+                <% session.acceptedDocuments.forEach((document) => { %>
+                  <article class="document-card document-card--accepted">
+                    <div class="document-card__top">
+                      <div>
+                        <strong><%= document.originalName %></strong>
+                        <span><%= document.sourceDisplayName %> · <%= document.sizeText %></span>
+                      </div>
+                      <span class="status-pill status-pill--good">Accepted</span>
+                    </div>
+
+                    <div class="document-card__meta">
+                      <span><%= document.normalizedRecordCount %> normalized row<%= document.normalizedRecordCount === 1 ? '' : 's' %></span>
+                      <span><%= document.detectedIdentifierCount %> identifier<%= document.detectedIdentifierCount === 1 ? '' : 's' %></span>
+                    </div>
+
+                    <% if (document.parseSummary) { %>
+                      <p>
+                        Parsed <%= document.parseSummary.parsedRows %> of <%= document.parseSummary.totalRows %> row<%= document.parseSummary.totalRows === 1 ? '' : 's' %>
+                      </p>
+                    <% } %>
+
+                    <% if (document.warnings && document.warnings.length) { %>
+                      <div class="warning-list">
+                        <% document.warnings.forEach((warning) => { %>
+                          <p><%= warning %></p>
+                        <% }); %>
+                      </div>
+                    <% } %>
+                  </article>
+                <% }); %>
+              </div>
+            </section>
+          <% } %>
+
+          <% if (hasRejectedDocuments) { %>
+            <section class="stage-block">
+              <div class="section-heading">
+                <div>
+                  <p class="section-kicker">Rejected Files</p>
+                  <h3>Anything here still needs attention</h3>
+                </div>
+              </div>
+
+              <div class="document-list">
+                <% session.rejectedDocuments.forEach((document) => { %>
+                  <article class="document-card document-card--rejected">
+                    <div class="document-card__top">
+                      <div>
+                        <strong><%= document.originalName %></strong>
+                        <span><%= document.sizeText %></span>
+                      </div>
+                      <span class="status-pill status-pill--warn">Rejected</span>
+                    </div>
+                    <p><%= document.rejectionReason %></p>
+                  </article>
+                <% }); %>
+              </div>
+            </section>
+          <% } %>
+
+        <% } else if (session.phase === 'wallet-review') { %>
+          <section class="mini-stats" aria-label="Wallet review summary">
+            <div class="mini-stat">
+              <strong><%= session.counts.identifiers %></strong>
+              <span>Detected identifier<%= session.counts.identifiers === 1 ? '' : 's' %></span>
+            </div>
+            <div class="mini-stat">
+              <strong><%= session.counts.ownedIdentifiers %></strong>
+              <span>Marked as owned</span>
+            </div>
+            <div class="mini-stat">
+              <strong><%= session.counts.accepted %></strong>
+              <span>Accepted source document<%= session.counts.accepted === 1 ? '' : 's' %></span>
+            </div>
+          </section>
 
           <% if (session.detectedIdentifiers.length) { %>
-            <form action="/bitcoin-tax/wallets" method="post" class="result-list">
-              <% session.detectedIdentifiers.forEach((identifier) => { %>
-                <label class="result-item">
-                  <strong>
-                    <input type="checkbox" name="ownedIdentifierIds" value="<%= identifier.identifierId %>" <%= identifier.selectedOwned ? 'checked' : '' %> />
-                    <%= identifier.value %>
-                  </strong>
-                  <span><%= identifier.identifierType %> · seen in <%= identifier.sourceDocumentNameText %></span>
-                  <input
-                    class="upload-form__input"
-                    type="text"
-                    name="identifier_note_<%= identifier.identifierId %>"
-                    value="<%= identifier.note || '' %>"
-                    placeholder="Optional note"
-                  />
-                </label>
+            <form action="/bitcoin-tax/wallets" method="post" class="stack-form">
+              <% Object.entries(identifierGroups).forEach(([groupName, identifiers]) => { %>
+                <section class="stage-block">
+                  <div class="section-heading">
+                    <div>
+                      <p class="section-kicker"><%= formatLabel(groupName) %></p>
+                      <h3>Confirm the identifiers that belong to you</h3>
+                    </div>
+                  </div>
+
+                  <div class="selection-list">
+                    <% identifiers.forEach((identifier) => { %>
+                      <label class="selection-card">
+                        <div class="selection-card__toggle">
+                          <input type="checkbox" name="ownedIdentifierIds" value="<%= identifier.identifierId %>" <%= identifier.selectedOwned ? 'checked' : '' %> />
+                        </div>
+
+                        <div class="selection-card__body">
+                          <strong><%= identifier.value %></strong>
+                          <span><%= formatLabel(identifier.identifierType) %> · Seen in <%= identifier.sourceDocumentNameText %></span>
+                          <input
+                            class="upload-form__input"
+                            type="text"
+                            name="identifier_note_<%= identifier.identifierId %>"
+                            value="<%= identifier.note || '' %>"
+                            placeholder="Optional note for yourself"
+                          />
+                        </div>
+                      </label>
+                    <% }); %>
+                  </div>
+                </section>
               <% }); %>
 
-              <button class="upload-button" type="submit">Save wallet selections and continue</button>
+              <div class="stage-actions">
+                <button class="hero-link" type="submit" formaction="/bitcoin-tax/back-to-upload" formmethod="post">Back to uploads</button>
+                <button class="upload-button" type="submit">Save wallet selections and continue</button>
+              </div>
             </form>
           <% } else { %>
-            <p class="empty-state">No wallet or address identifiers were parsed from the accepted documents yet.</p>
+            <section class="stage-block">
+              <p class="empty-state">No wallet or address identifiers were parsed from the accepted documents yet.</p>
+              <div class="stage-actions">
+                <form action="/bitcoin-tax/back-to-upload" method="post">
+                  <button class="hero-link" type="submit">Back to uploads</button>
+                </form>
+                <form action="/bitcoin-tax/wallets" method="post">
+                  <button class="upload-button" type="submit">Continue without wallet selections</button>
+                </form>
+              </div>
+            </section>
           <% } %>
-        </section>
-      <% } %>
 
-      <% if (session.phase === 'send-review') { %>
-        <section class="results-card" aria-label="Outgoing send review">
-          <p class="section-kicker">Outgoing Send Review</p>
-          <h2>Mark the sends that were actual spending.</h2>
-          <p>
-            Review each outgoing BTC send we parsed from your accepted documents. Check only the rows that were actual spending.
-            Leave a row unchecked if it was non-spending, like moving bitcoin between wallets you control.
-          </p>
+        <% } else if (session.phase === 'send-review') { %>
+          <section class="mini-stats" aria-label="Send review summary">
+            <div class="mini-stat">
+              <strong><%= session.counts.reviewableSends %></strong>
+              <span>Outgoing send<%= session.counts.reviewableSends === 1 ? '' : 's' %> to review</span>
+            </div>
+            <div class="mini-stat">
+              <strong><%= session.counts.spendingMarked %></strong>
+              <span>Already marked as spending</span>
+            </div>
+            <div class="mini-stat">
+              <strong><%= session.counts.ownedIdentifiers %></strong>
+              <span>Owned identifiers saved</span>
+            </div>
+          </section>
 
           <% if (session.reviewableSendTransactions && session.reviewableSendTransactions.length) { %>
-            <form action="/bitcoin-tax/send-review" method="post" class="result-list">
-              <% session.reviewableSendTransactions.forEach((record) => { %>
-                <label class="result-item">
-                  <strong>
-                    <input type="checkbox" name="spendingSendRecordIds" value="<%= record.recordId %>" <%= record.selectedSpending ? 'checked' : '' %> />
-                    Mark as spending
-                  </strong>
-                  <span><%= record.quantityText %> · <%= record.fiatAmountText %> · <%= record.occurredAt || 'unknown date' %></span>
-                  <p>Source: <%= record.sourceDocumentName %> · Type: <%= record.recordType %></p>
-                  <% if (record.note) { %>
-                    <p><%= record.note %></p>
-                  <% } %>
-                </label>
-              <% }); %>
+            <form action="/bitcoin-tax/send-review" method="post" class="stack-form">
+              <section class="stage-block">
+                <div class="section-heading">
+                  <div>
+                    <p class="section-kicker">Transaction Review</p>
+                    <h3>Check only the sends that were actual spending</h3>
+                  </div>
+                </div>
 
-              <button class="upload-button" type="submit">Save send review and run draft calculations</button>
+                <div class="selection-list">
+                  <% session.reviewableSendTransactions.forEach((record) => { %>
+                    <label class="selection-card">
+                      <div class="selection-card__toggle">
+                        <input type="checkbox" name="spendingSendRecordIds" value="<%= record.recordId %>" <%= record.selectedSpending ? 'checked' : '' %> />
+                      </div>
+
+                      <div class="selection-card__body">
+                        <strong><%= record.quantityText %> · <%= record.fiatAmountText %></strong>
+                        <span><%= record.occurredAt || 'unknown date' %> · Source: <%= record.sourceDocumentName %></span>
+                        <p>Leave unchecked if it was simply a move between wallets you control.</p>
+                        <% if (record.note) { %>
+                          <p><%= record.note %></p>
+                        <% } %>
+                      </div>
+                    </label>
+                  <% }); %>
+                </div>
+              </section>
+
+              <div class="stage-actions">
+                <button class="hero-link" type="submit" formaction="/bitcoin-tax/back-to-wallet-review" formmethod="post">Back to wallet review</button>
+                <button class="upload-button" type="submit">Run draft calculations</button>
+              </div>
             </form>
           <% } else { %>
-            <p class="empty-state">No outgoing BTC send rows need review in the accepted documents.</p>
+            <section class="stage-block">
+              <p class="empty-state">No outgoing BTC send rows need review in the accepted documents.</p>
+            </section>
           <% } %>
-        </section>
-      <% } %>
 
-      <% if (session.phase === 'calculation-ready' && calculationResult) { %>
-        <section class="results-card" aria-label="Calculation placeholder">
-          <p class="section-kicker">Draft Calculation</p>
-          <h2>
-            <% if (calculationResult.status === 'ready') { %>
-              Draft rows are ready.
-            <% } else if (calculationResult.status === 'needs_more_info') { %>
-              More information is still needed.
-            <% } else { %>
-              No draft tax rows yet.
-            <% } %>
-          </h2>
-          <p>
-            This beta pass builds FIFO cost basis from explicit buy rows and draft dispositions from explicit sell rows,
-            Split spend rows, and outgoing send rows you marked as actual spending.
-            Unchecked send, receive, and transfer rows remain non-spending unless both sides match identifiers you marked as owned.
-          </p>
+        <% } else if (calculationResult) { %>
+          <section class="summary-hero summary-hero--<%= calculationResult.status %>">
+            <div>
+              <p class="section-kicker">Draft Calculation</p>
+              <h3>
+                <% if (calculationResult.status === 'ready') { %>
+                  Draft rows are ready for review.
+                <% } else if (calculationResult.status === 'needs_more_info') { %>
+                  More information is still needed.
+                <% } else { %>
+                  No draft tax rows were produced yet.
+                <% } %>
+              </h3>
+              <p>
+                This pass uses FIFO cost basis from explicit buy rows and dispositions from explicit sell rows,
+                Split spend rows, and sends you marked as spending.
+              </p>
+            </div>
+          </section>
 
-          <div class="result-list">
-            <div class="result-item">
-              <strong><%= calculationResult.counts.acquisitionRecords %> acquisition record<%= calculationResult.counts.acquisitionRecords === 1 ? '' : 's' %></strong>
-              <span>Explicit buy rows used to build FIFO lots.</span>
+          <section class="mini-stats" aria-label="Draft totals">
+            <div class="mini-stat">
+              <strong><%= calculationResult.totals.short.gainLossText %></strong>
+              <span>Short-term gain or loss</span>
             </div>
-            <div class="result-item">
-              <strong><%= calculationResult.counts.dispositionRecords %> disposition record<%= calculationResult.counts.dispositionRecords === 1 ? '' : 's' %></strong>
-              <span>Explicit sell and spend rows, plus reviewed send rows marked as spending.</span>
+            <div class="mini-stat">
+              <strong><%= calculationResult.totals.long.gainLossText %></strong>
+              <span>Long-term gain or loss</span>
             </div>
-            <div class="result-item">
-              <strong><%= calculationResult.counts.selfTransfersSuppressed %> self-transfer record<%= calculationResult.counts.selfTransfersSuppressed === 1 ? '' : 's' %> suppressed</strong>
-              <span>Both sides matched identifiers you marked as owned.</span>
+            <div class="mini-stat">
+              <strong><%= calculationResult.draftRows.length %></strong>
+              <span>Draft FIFO row<%= calculationResult.draftRows.length === 1 ? '' : 's' %></span>
             </div>
-            <div class="result-item">
-              <strong><%= calculationResult.counts.movementRecordsExcluded %> movement record<%= calculationResult.counts.movementRecordsExcluded === 1 ? '' : 's' %> excluded</strong>
-              <span>Unchecked or unresolved send, receive, and transfer rows were left as non-spending in this beta pass.</span>
+            <div class="mini-stat">
+              <strong><%= calculationResult.counts.selfTransfersSuppressed %></strong>
+              <span>Self-transfer<%= calculationResult.counts.selfTransfersSuppressed === 1 ? '' : 's' %> suppressed</span>
             </div>
-          </div>
-        </section>
+          </section>
 
-        <section class="results-grid" aria-label="Calculation totals">
-          <article class="results-card">
-            <p class="section-kicker">Short-Term</p>
-            <h2><%= calculationResult.totals.short.rows %> draft row<%= calculationResult.totals.short.rows === 1 ? '' : 's' %></h2>
-            <div class="result-list">
-              <div class="result-item">
-                <strong><%= calculationResult.totals.short.proceedsText %> proceeds</strong>
-                <span>Allocated to short-term dispositions.</span>
+          <section class="summary-grid" aria-label="Short and long term summary">
+            <article class="summary-card">
+              <p class="section-kicker">Short-Term</p>
+              <h3><%= calculationResult.totals.short.rows %> draft row<%= calculationResult.totals.short.rows === 1 ? '' : 's' %></h3>
+              <div class="result-list">
+                <div class="result-item">
+                  <strong><%= calculationResult.totals.short.proceedsText %> proceeds</strong>
+                  <span>Allocated to short-term dispositions.</span>
+                </div>
+                <div class="result-item">
+                  <strong><%= calculationResult.totals.short.basisText %> basis</strong>
+                  <span>FIFO basis matched from prior buy lots.</span>
+                </div>
+                <div class="result-item">
+                  <strong><%= calculationResult.totals.short.gainLossText %> gain or loss</strong>
+                  <span>Net short-term result in this draft pass.</span>
+                </div>
               </div>
-              <div class="result-item">
-                <strong><%= calculationResult.totals.short.basisText %> basis</strong>
-                <span>FIFO basis matched from prior buy lots.</span>
+            </article>
+
+            <article class="summary-card">
+              <p class="section-kicker">Long-Term</p>
+              <h3><%= calculationResult.totals.long.rows %> draft row<%= calculationResult.totals.long.rows === 1 ? '' : 's' %></h3>
+              <div class="result-list">
+                <div class="result-item">
+                  <strong><%= calculationResult.totals.long.proceedsText %> proceeds</strong>
+                  <span>Allocated to long-term dispositions.</span>
+                </div>
+                <div class="result-item">
+                  <strong><%= calculationResult.totals.long.basisText %> basis</strong>
+                  <span>FIFO basis matched from prior buy lots.</span>
+                </div>
+                <div class="result-item">
+                  <strong><%= calculationResult.totals.long.gainLossText %> gain or loss</strong>
+                  <span>Net long-term result in this draft pass.</span>
+                </div>
               </div>
-              <div class="result-item">
-                <strong><%= calculationResult.totals.short.gainLossText %> gain or loss</strong>
-                <span>Net short-term result in this draft pass.</span>
+            </article>
+          </section>
+
+          <% if (calculationResult.warnings && calculationResult.warnings.length) { %>
+            <section class="stage-block">
+              <div class="section-heading">
+                <div>
+                  <p class="section-kicker">Warnings</p>
+                  <h3>What this draft excluded</h3>
+                </div>
               </div>
+              <div class="warning-list">
+                <% calculationResult.warnings.forEach((warning) => { %>
+                  <p><%= warning %></p>
+                <% }); %>
+              </div>
+            </section>
+          <% } %>
+
+          <% if (calculationResult.issues && calculationResult.issues.length) { %>
+            <section class="stage-block">
+              <div class="section-heading">
+                <div>
+                  <p class="section-kicker">Needs Review</p>
+                  <h3>The draft output is incomplete</h3>
+                </div>
+              </div>
+              <div class="warning-list warning-list--critical">
+                <% calculationResult.issues.forEach((issue) => { %>
+                  <p><%= issue %></p>
+                <% }); %>
+              </div>
+            </section>
+          <% } %>
+
+          <% if (calculationResult.officialForms && calculationResult.officialForms.form8949SummaryRows && calculationResult.officialForms.form8949SummaryRows.length) { %>
+            <details class="detail-card">
+              <summary>
+                <span>Official form mapping</span>
+                <span>View Form 8949 and Schedule D rollups</span>
+              </summary>
+              <div class="detail-card__content result-list">
+                <% calculationResult.officialForms.form8949SummaryRows.forEach((row) => { %>
+                  <div class="result-item">
+                    <strong>Part <%= row.part %> · Box <%= row.box %> · Schedule D line <%= row.scheduleDLine %></strong>
+                    <span><%= row.totals.rows %> row<%= row.totals.rows === 1 ? '' : 's' %> summarized with code <%= row.code %>.</span>
+                    <p>Proceeds: $<%= row.proceeds %> · Basis: $<%= row.costOrOtherBasis %> · Gain/Loss: $<%= row.gainOrLoss %></p>
+                  </div>
+                <% }); %>
+              </div>
+            </details>
+          <% } %>
+
+          <details class="detail-card">
+            <summary>
+              <span>Draft FIFO rows</span>
+              <span><%= calculationResult.draftRows.length %> row<%= calculationResult.draftRows.length === 1 ? '' : 's' %></span>
+            </summary>
+            <div class="detail-card__content draft-row-list">
+              <% if (calculationResult.draftRows.length) { %>
+                <% calculationResult.draftRows.forEach((row) => { %>
+                  <div class="result-item">
+                    <strong><%= row.quantityText %> · <%= row.holdingPeriod %>-term</strong>
+                    <span>Acquired <%= row.acquiredAt || 'unknown' %> · Disposed <%= row.disposedAt || 'unknown' %></span>
+                    <p>Proceeds: <%= row.proceedsText %> · Basis: <%= row.basisText %> · Gain/Loss: <%= row.gainLossText %></p>
+                    <p>Buy source: <%= row.acquisitionSourceDocumentName %> · Disposition source: <%= row.dispositionSourceDocumentName %></p>
+                  </div>
+                <% }); %>
+              <% } else { %>
+                <p class="empty-state">No draft FIFO rows were generated from the current accepted documents.</p>
+              <% } %>
+            </div>
+          </details>
+        <% } %>
+      </article>
+
+      <% if (hasSidebar) { %>
+      <aside class="stage-sidebar">
+        <% if (session.phase === 'calculation-ready' && calculationResult) { %>
+          <article class="stage-card stage-card--sidebar">
+            <p class="section-kicker">Download</p>
+            <h3>Get the draft package</h3>
+            <p>
+              The ZIP includes filled IRS Form 8949 and Schedule D PDFs, a PDF summary, JSON output, and the accepted source documents used to build this draft.
+            </p>
+
+            <div class="stack-actions">
+              <form action="/bitcoin-tax/download-package" method="post">
+                <button class="upload-button" type="submit">Download draft package</button>
+              </form>
+
+              <form action="/bitcoin-tax/back-to-wallet-review" method="post">
+                <button class="hero-link" type="submit">Review wallet selections again</button>
+              </form>
+
+              <% if (hasReviewableSends) { %>
+                <form action="/bitcoin-tax/back-to-send-review" method="post">
+                  <button class="hero-link" type="submit">Review send choices again</button>
+                </form>
+              <% } %>
             </div>
           </article>
-
-          <article class="results-card">
-            <p class="section-kicker">Long-Term</p>
-            <h2><%= calculationResult.totals.long.rows %> draft row<%= calculationResult.totals.long.rows === 1 ? '' : 's' %></h2>
-            <div class="result-list">
-              <div class="result-item">
-                <strong><%= calculationResult.totals.long.proceedsText %> proceeds</strong>
-                <span>Allocated to long-term dispositions.</span>
-              </div>
-              <div class="result-item">
-                <strong><%= calculationResult.totals.long.basisText %> basis</strong>
-                <span>FIFO basis matched from prior buy lots.</span>
-              </div>
-              <div class="result-item">
-                <strong><%= calculationResult.totals.long.gainLossText %> gain or loss</strong>
-                <span>Net long-term result in this draft pass.</span>
-              </div>
-            </div>
-          </article>
-        </section>
-
-        <% if (calculationResult.warnings && calculationResult.warnings.length) { %>
-          <section class="results-card" aria-label="Calculation warnings">
-            <p class="section-kicker">Warnings</p>
-            <h2>What this draft excluded.</h2>
-
-            <div class="warning-list">
-              <% calculationResult.warnings.forEach((warning) => { %>
-                <p><%= warning %></p>
-              <% }); %>
-            </div>
-          </section>
         <% } %>
 
-        <% if (calculationResult.issues && calculationResult.issues.length) { %>
-          <section class="results-card" aria-label="Calculation issues">
-            <p class="section-kicker">Needs Review</p>
-            <h2>Draft output is incomplete.</h2>
-
-            <div class="warning-list">
-              <% calculationResult.issues.forEach((issue) => { %>
-                <p><%= issue %></p>
-              <% }); %>
+        <% if (session.phase === 'upload') { %>
+          <details class="detail-card detail-card--sidebar">
+            <summary>
+              <span>Supported documents</span>
+              <span>View current coverage</span>
+            </summary>
+            <div class="detail-card__content support-columns">
+              <div class="support-item">
+                <strong>Tested and verified</strong>
+                <p><%= sourceCoverage.testedAndVerified.length ? sourceCoverage.testedAndVerified.map((item) => item.coverageLabel).join(', ') : 'None yet' %></p>
+              </div>
+              <div class="support-item">
+                <strong>Supported but untested</strong>
+                <p><%= sourceCoverage.supportedButUntested.length ? sourceCoverage.supportedButUntested.map((item) => item.coverageLabel).join(', ') : 'None' %></p>
+              </div>
             </div>
-          </section>
+          </details>
         <% } %>
-
-        <% if (calculationResult.officialForms && calculationResult.officialForms.form8949SummaryRows && calculationResult.officialForms.form8949SummaryRows.length) { %>
-          <section class="results-card" aria-label="Official form mapping">
-            <p class="section-kicker">Official Form Mapping</p>
-            <h2>Form 8949 and Schedule D rollups.</h2>
-            <p>This draft now maps FIFO rows into 2025 Form 8949 box groups and matching Schedule D lines.</p>
-
-            <div class="result-list">
-              <% calculationResult.officialForms.form8949SummaryRows.forEach((row) => { %>
-                <div class="result-item">
-                  <strong>Part <%= row.part %> · Box <%= row.box %> · Schedule D line <%= row.scheduleDLine %></strong>
-                  <span><%= row.totals.rows %> row<%= row.totals.rows === 1 ? '' : 's' %> summarized with code <%= row.code %>.</span>
-                  <p>Proceeds: $<%= row.proceeds %> · Basis: $<%= row.costOrOtherBasis %> · Gain/Loss: $<%= row.gainOrLoss %></p>
-                </div>
-              <% }); %>
-            </div>
-          </section>
-        <% } %>
-
-        <section class="results-card" aria-label="Draft tax rows">
-          <p class="section-kicker">Draft Rows</p>
-          <h2><%= calculationResult.draftRows.length %> FIFO row<%= calculationResult.draftRows.length === 1 ? '' : 's' %></h2>
-
-          <% if (calculationResult.draftRows.length) { %>
-            <div class="draft-row-list">
-              <% calculationResult.draftRows.forEach((row) => { %>
-                <div class="result-item">
-                  <strong><%= row.quantityText %> · <%= row.holdingPeriod %>-term</strong>
-                  <span>Acquired <%= row.acquiredAt || 'unknown' %> · Disposed <%= row.disposedAt || 'unknown' %></span>
-                  <p>Proceeds: <%= row.proceedsText %> · Basis: <%= row.basisText %> · Gain/Loss: <%= row.gainLossText %></p>
-                  <p>Buy source: <%= row.acquisitionSourceDocumentName %> · Disposition source: <%= row.dispositionSourceDocumentName %></p>
-                </div>
-              <% }); %>
-            </div>
-          <% } else { %>
-            <p class="empty-state">No draft FIFO rows were generated from the current accepted documents.</p>
-          <% } %>
-        </section>
-
-        <section class="results-card" aria-label="Download package">
-          <p class="section-kicker">Download</p>
-          <h2>Get the draft package.</h2>
-          <p>
-            The ZIP includes filled IRS Form 8949 and Schedule D PDFs, a PDF summary, Form 8949 attachment-statement rows, Form 8949 summary rows, Schedule D rollups, a JSON calculation summary, and the accepted source documents used to create the output.
-            This beta package should be reviewed with a qualified tax professional before it is used for any reporting or filing. Downloading it clears this working session.
-          </p>
-
-          <form action="/bitcoin-tax/download-package" method="post">
-            <button class="upload-button" type="submit">Download draft package</button>
-          </form>
-        </section>
+      </aside>
       <% } %>
     </section>
   </main>

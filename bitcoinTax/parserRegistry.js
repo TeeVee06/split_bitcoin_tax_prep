@@ -9,6 +9,7 @@ const parseGenericExchangeCsvDocument = require('./parsers/genericExchangeCsvPar
 const parseGeneric1099PdfDocument = require('./parsers/generic1099PdfParser');
 const parseRobinhood1099PdfDocument = require('./parsers/robinhood1099PdfParser');
 const parseSplitCsvDocument = require('./parsers/splitCsvParser');
+const parseStrikeCsvDocument = require('./parsers/strikeCsvParser');
 
 const parserRegistry = {
   cash_app_1099_pdf: parseCashApp1099PdfDocument,
@@ -18,6 +19,7 @@ const parserRegistry = {
   robinhood_1099_pdf: parseRobinhood1099PdfDocument,
   split_csv: parseSplitCsvDocument,
   generic_exchange_csv: parseGenericExchangeCsvDocument,
+  strike_csv: parseStrikeCsvDocument,
 };
 
 function buildTabularInspection(rows, extra = {}) {

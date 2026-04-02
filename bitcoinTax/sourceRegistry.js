@@ -106,11 +106,11 @@ const DOCUMENT_SOURCES = [
     displayName: 'Strike CSV',
     category: 'exchange_export',
     implemented: true,
-    parserId: 'generic_exchange_csv',
+    parserId: 'strike_csv',
     acceptedExtensions: ['.csv'],
-    filenamePatterns: [/strike/i],
-    headerHints: ['date', 'type', 'asset', 'amount', 'fee'],
-    description: 'Strike CSV exports used to reconstruct bitcoin purchases and transfers based on publicly documented export availability.',
+    filenamePatterns: [/strike/i, /annual transactions/i],
+    headerHints: ['reference', 'date & time utc', 'transaction type', 'amount usd', 'fee usd', 'amount btc', 'cost basis usd', 'transaction hash'],
+    description: 'Strike CSV exports used to reconstruct tested bitcoin purchases, receives, and sends from Strike annual transaction exports.',
   },
   {
     sourceId: 'river_csv',
@@ -175,6 +175,7 @@ const TESTED_SOURCE_IDS = new Set([
   'split_spending_csv',
   'cash_app_1099_da_pdf',
   'cash_app_csv',
+  'strike_csv',
 ]);
 
 function listDocumentSources() {
