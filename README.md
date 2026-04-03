@@ -42,6 +42,14 @@ http://localhost:5050/bitcoin-tax
 npm test
 ```
 
+Run the parser scenario harness when you want to validate the representative document shapes each parser is built around:
+
+```bash
+npm run test:parsers
+```
+
+That scenario suite exercises provider-specific and generic parser paths with mocked CSV/PDF inputs that mirror the exact document layouts the parsers expect.
+
 ## Included Feature Flow
 
 - Upload supported CSV and PDF files
@@ -55,6 +63,7 @@ npm test
 - Split CSV
 - Cash App 1099 form
 - Cash App transaction CSV
+- Coinbase gain/loss CSV
 - Strike CSV
 
 ## Contributing

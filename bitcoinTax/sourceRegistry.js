@@ -11,6 +11,17 @@ const DOCUMENT_SOURCES = [
     description: 'Split export used to identify spend events and related merchant metadata.',
   },
   {
+    sourceId: 'coinbase_gain_loss_csv',
+    displayName: 'Coinbase Gain/Loss CSV',
+    category: 'exchange_export',
+    implemented: true,
+    parserId: 'coinbase_gain_loss_csv',
+    acceptedExtensions: ['.csv'],
+    filenamePatterns: [/coinbase/i, /gain.?loss/i, /cb-gainlosscsv/i],
+    headerHints: ['transaction type', 'tax lot id', 'asset name', 'amount', 'date acquired', 'cost basis usd', 'date of disposition', 'proceeds usd'],
+    description: 'Coinbase gain/loss CSV exports used to preserve lot-level bitcoin basis and disposition data from Coinbase tax reports.',
+  },
+  {
     sourceId: 'coinbase_csv',
     displayName: 'Coinbase CSV',
     category: 'exchange_export',
@@ -175,6 +186,7 @@ const TESTED_SOURCE_IDS = new Set([
   'split_spending_csv',
   'cash_app_1099_da_pdf',
   'cash_app_csv',
+  'coinbase_gain_loss_csv',
   'strike_csv',
 ]);
 
@@ -216,9 +228,11 @@ function summarizeSourceCoverage() {
       coverageLabel: source.sourceId === 'split_spending_csv'
         ? 'Split CSV'
         : source.sourceId === 'cash_app_1099_da_pdf'
-          ? 'Cash App 1099 form'
-          : source.sourceId === 'cash_app_csv'
-            ? 'Cash App transaction CSV'
+        ? 'Cash App 1099 form'
+        : source.sourceId === 'cash_app_csv'
+          ? 'Cash App transaction CSV'
+          : source.sourceId === 'coinbase_gain_loss_csv'
+            ? 'Coinbase gain/loss CSV'
             : source.displayName,
     };
 

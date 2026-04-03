@@ -213,7 +213,12 @@
                         <strong><%= document.originalName %></strong>
                         <span><%= document.sourceDisplayName %> · <%= document.sizeText %></span>
                       </div>
-                      <span class="status-pill status-pill--good">Accepted</span>
+                      <div class="document-card__status">
+                        <span class="status-pill status-pill--good">Accepted</span>
+                        <% if (document.usedGenericParser) { %>
+                          <span class="status-pill status-pill--caution">Generic parser</span>
+                        <% } %>
+                      </div>
                     </div>
 
                     <div class="document-card__meta">

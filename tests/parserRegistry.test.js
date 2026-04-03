@@ -115,3 +115,70 @@ test('parseBitcoinTaxDocument recognizes and normalizes Cash App bitcoin CSV upl
     result.warnings.some((warning) => warning.includes('supported Cash App bitcoin transaction shapes'))
   );
 });
+
+test('parseBitcoinTaxDocument recognizes and normalizes Coinbase gain/loss CSV uploads', async () => {
+  const coinbaseCsv = [
+    '"This report includes all taxable activity on Coinbase with realized gains or losses.",,,,,,,,,,,',
+    ',,,,,,,,,,,',
+    'Gain/loss report,,,,,,,,,,,',
+    'User,example-user-id,test@example.com,,,,,,,,,',
+    ',,,,,,,,,,,',
+    'Transaction Type,Transaction ID,Tax lot ID,Asset name,Amount,Date Acquired,Cost basis (USD),Date of Disposition,Proceeds (USD),Gains (Losses) (USD),Holding period (Days),Data source',
+    'Fee,fee-tx-1,lot-1,BTC,0.00000460,12/02/2025,0.417452346,12/04/2025,0.4233388551444870,0.0058865091444873900,2,Coinbase',
+    'Sell,sell-tx-1,lot-2,BTC,0.00010000,11/30/2025,8.88000000,12/05/2025,9.25000000,0.37000000,5,Coinbase',
+  ].join('\n');
+
+  const result = await parseBitcoinTaxDocument({
+    documentId: 'doc-coinbase-1',
+    file: buildUploadFile('Coinbase-2025-CB-GAINLOSSCSV.csv', coinbaseCsv),
+  });
+
+  assert.equal(result.accepted, true);
+  assert.equal(result.sourceId, 'coinbase_gain_loss_csv');
+  assert.equal(result.parserId, 'coinbase_gain_loss_csv');
+  assert.equal(result.normalizedRecords.length, 4);
+  assert.equal(result.parseSummary.matchedTaxLotRows, 2);
+  assert.equal(result.parseSummary.totalRows, 2);
+
+  const [buyRecord, sellRecord] = result.normalizedRecords;
+
+  assert.equal(buyRecord.recordType, 'buy');
+  assert.equal(buyRecord.occurredAt, '2025-12-02T00:00:00.000Z');
+  assert.equal(buyRecord.quantitySats, '460');
+  assert.equal(buyRecord.fiatAmountCents, 41);
+  assert.equal(buyRecord.toIdentifier, 'Coinbase BTC');
+
+  assert.equal(sellRecord.recordType, 'sell');
+  assert.equal(sellRecord.occurredAt, '2025-12-04T00:00:00.000Z');
+  assert.equal(sellRecord.quantitySats, '460');
+  assert.equal(sellRecord.fiatAmountCents, 42);
+  assert.equal(sellRecord.fromIdentifier, 'Coinbase BTC');
+
+  assert.ok(
+    result.detectedIdentifiers.some((identifier) => identifier.value === 'Coinbase BTC')
+  );
+  assert.ok(
+    result.warnings.some((warning) => /Coinbase gain\/loss reports are already lot-level tax data/i.test(warning))
+  );
+});
+
+test('parseBitcoinTaxDocument warns when a provider file falls back to the generic CSV parser', async () => {
+  const coinbaseCsv = [
+    'Date,Type,Asset,Amount,Proceeds,Fee,From,To,Transaction ID,Description',
+    '2025-01-01T00:00:00Z,Buy,BTC,0.00100000,100.00,1.00,,Coinbase BTC,buy-1,Recurring buy',
+    '2025-01-03T00:00:00Z,Send,BTC,0.00020000,20.00,0.20,Coinbase BTC,bc1qcoinbasedestination0000000000000000000000,send-1,Sent to wallet',
+  ].join('\n');
+
+  const result = await parseBitcoinTaxDocument({
+    documentId: 'doc-coinbase-2',
+    file: buildUploadFile('coinbase-transactions.csv', coinbaseCsv),
+  });
+
+  assert.equal(result.accepted, true);
+  assert.equal(result.sourceId, 'coinbase_csv');
+  assert.equal(result.parserId, 'generic_exchange_csv');
+  assert.equal(result.usedGenericParser, true);
+  assert.ok(
+    result.warnings.some((warning) => /generic CSV fallback, not a Coinbase-specific parser/i.test(warning))
+  );
+});

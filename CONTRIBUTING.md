@@ -52,5 +52,12 @@ Use the detailed parser guide in [docs/parser-contribution-guide.md](docs/parser
 npm test
 ```
 
+- If you change parser behavior, also run the parser scenario harness:
+
+```bash
+npm run test:parsers
+```
+
+- `npm run test:parsers` exercises representative CSV and PDF layouts for the supported parser set, so parser changes should usually be reflected there too.
 - GitHub Actions runs the same test suite on pushes and pull requests.
 - If you change parser behavior, tax calculation behavior, or the upload/review flow, add or update tests with the change.

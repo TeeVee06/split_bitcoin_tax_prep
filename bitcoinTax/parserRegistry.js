@@ -3,6 +3,7 @@ const parseCashApp1099PdfDocument = require('./parsers/cashApp1099PdfParser');
 const parseCashAppCsvDocument = require('./parsers/cashAppCsvParser');
 const { buildHeaderMap, normalizeHeader, parseCsvText } = require('./csvUtils');
 const parseCoinbase1099PdfDocument = require('./parsers/coinbase1099PdfParser');
+const parseCoinbaseGainLossCsvDocument = require('./parsers/coinbaseGainLossCsvParser');
 const { extractPdfStrings, splitPdfLines } = require('./parsers/pdfTextUtils');
 const { listDocumentSources } = require('./sourceRegistry');
 const parseGenericExchangeCsvDocument = require('./parsers/genericExchangeCsvParser');
@@ -14,12 +15,25 @@ const parseStrikeCsvDocument = require('./parsers/strikeCsvParser');
 const parserRegistry = {
   cash_app_1099_pdf: parseCashApp1099PdfDocument,
   cash_app_csv: parseCashAppCsvDocument,
+  coinbase_gain_loss_csv: parseCoinbaseGainLossCsvDocument,
   coinbase_1099_pdf: parseCoinbase1099PdfDocument,
   generic_1099_pdf: parseGeneric1099PdfDocument,
   robinhood_1099_pdf: parseRobinhood1099PdfDocument,
   split_csv: parseSplitCsvDocument,
   generic_exchange_csv: parseGenericExchangeCsvDocument,
   strike_csv: parseStrikeCsvDocument,
+};
+
+const GENERIC_PARSER_WARNING_BY_SOURCE_ID = {
+  coinbase_csv: 'This document was parsed using Split\'s generic CSV fallback, not a Coinbase-specific parser. Review the imported rows carefully before relying on the output.',
+  kraken_csv: 'This document was parsed using Split\'s generic CSV fallback, not a Kraken-specific parser. Review the imported rows carefully before relying on the output.',
+  swan_tax_csv: 'This document was parsed using Split\'s generic CSV fallback, not a Swan-specific parser. Review the imported rows carefully before relying on the output.',
+  swan_deposits_purchases_csv: 'This document was parsed using Split\'s generic CSV fallback, not a Swan-specific parser. Review the imported rows carefully before relying on the output.',
+  river_csv: 'This document was parsed using Split\'s generic CSV fallback, not a River-specific parser. Review the imported rows carefully before relying on the output.',
+  fold_bitcoin_csv: 'This document was parsed using Split\'s generic CSV fallback, not a Fold-specific parser. Review the imported rows carefully before relying on the output.',
+  generic_exchange_csv: 'This document was parsed using Split\'s generic CSV fallback. Review the imported rows carefully before relying on the output.',
+  form_1099_da_pdf: 'This document was parsed using Split\'s generic 1099 PDF fallback. Review the extracted rows carefully before relying on the output.',
+  generic_1099_pdf: 'This document was parsed using Split\'s generic 1099 PDF fallback. Review the extracted rows carefully before relying on the output.',
 };
 
 function buildTabularInspection(rows, extra = {}) {
@@ -199,12 +213,21 @@ async function parseBitcoinTaxDocument({ file, documentId }) {
     source: detectedSource,
   });
 
+  const warnings = Array.isArray(parseResult.warnings) ? [...parseResult.warnings] : [];
+  const genericParserWarning = GENERIC_PARSER_WARNING_BY_SOURCE_ID[detectedSource.sourceId];
+
+  if (genericParserWarning && !warnings.includes(genericParserWarning)) {
+    warnings.unshift(genericParserWarning);
+  }
+
   return {
     documentId,
     sourceId: detectedSource.sourceId,
     sourceDisplayName: detectedSource.displayName,
     parserId: detectedSource.parserId,
+    usedGenericParser: Boolean(genericParserWarning),
     ...parseResult,
+    warnings,
   };
 }
 

@@ -486,6 +486,14 @@ summary {
   justify-content: flex-start;
 }
 
+.document-card__status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .status-pill {
   display: inline-flex;
   align-items: center;
@@ -508,6 +516,11 @@ summary {
 .status-pill--warn {
   background: rgba(157, 61, 43, 0.12);
   color: var(--danger);
+}
+
+.status-pill--caution {
+  background: rgba(197, 138, 60, 0.14);
+  color: #6a4a1d;
 }
 
 .document-card--accepted {

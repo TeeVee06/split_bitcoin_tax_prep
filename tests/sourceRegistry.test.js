@@ -12,4 +12,10 @@ test('summarizeSourceCoverage lists Strike CSV as tested and verified', () => {
   assert.ok(
     !summary.supportedButUntested.some((entry) => entry.sourceId === 'strike_csv')
   );
+  assert.ok(
+    summary.testedAndVerified.some((entry) => entry.sourceId === 'coinbase_gain_loss_csv' && entry.coverageLabel === 'Coinbase gain/loss CSV')
+  );
+  assert.ok(
+    !summary.supportedButUntested.some((entry) => entry.sourceId === 'coinbase_gain_loss_csv')
+  );
 });
