@@ -1,5 +1,10 @@
 # AGENTS.md
 
+## Optional Internal Context
+
+- Internal Split agents with access to the full project folder may also review `PROJECT_MAP_INTERNAL.md` at the project root for cross-repo context.
+- External contributors and public-only review agents should ignore that file. This repo's `AGENTS.md` is the complete repo-local guidance.
+
 This file is for coding agents working in `split_bitcoin_tax_prep`.
 
 It complements, but does not replace:
@@ -28,6 +33,39 @@ This project is intentionally deterministic.
 ## Repository URL
 
 - GitHub: `https://github.com/TeeVee06/split_bitcoin_tax_prep`
+
+## Project Relationships
+
+This repo has two important roles at once:
+
+- it is a real open-source project intended for outside developer contributions
+- it is also the upstream standalone version of the Bitcoin tax-prep flow that is hosted inside the private `Split` backend
+
+Unlike the public mirror repos, this repository is meant to accept meaningful outside contributions when they fit the project goals.
+
+## Internal Context For Split Agents
+
+Some instructions in this file describe the relationship between this standalone repo and the private hosted copy inside `Split`.
+
+- Those relationship and sync instructions are for internal Split agents and maintainers.
+- External contributors and external review agents should treat them as project context, not as a required contribution workflow.
+- Outside contributors are not expected to update the private `Split` backend repo themselves.
+
+## Release And Sync Rules
+
+- Changes pushed to `main` in this repo are public releases.
+- For internal Split agents: when behavior, parser support, route flow, templates, or UI changes here, the hosted `Split` backend version must also be updated.
+- Do not treat the hosted backend copy as automatically synced.
+- For internal Split agents: if you change tax-prep logic here and do not also update the backend copy, call that out explicitly.
+- External contributors should note when a change appears likely to require hosted-backend sync, but they are not responsible for performing that private-repo update.
+
+The hosted backend copy currently lives primarily in:
+
+- `Split/bitcoinTax/`
+- `Split/routes/BitcoinTaxRoutes.js`
+- `Split/views/BitcoinTax.ejs`
+
+If the standalone app changes its web surface, also verify whether matching assets or route wiring in `Split` need to change.
 
 ## Local Setup
 
@@ -119,6 +157,12 @@ Reference docs:
 - `docs/parser-contribution-guide.md`
 - `docs/issue-roadmap.md`
 
+Hosted-copy relationship:
+
+- This repo contains the standalone tax-prep app.
+- The private `Split` backend contains an embedded/hosted version of the same tax-prep flow.
+- Internal Split agents should preserve functional parity between the standalone repo and the hosted backend copy unless the user explicitly wants them to diverge.
+
 ## Current Supported Flow And Assumptions
 
 The app currently centers on:
@@ -185,6 +229,12 @@ If you add or materially improve a parser:
 
 If a source is only supported in theory, do not mark it as tested.
 
+### 7. Preserve standalone and hosted parity for internal Split work
+
+- If you are working as an internal Split agent and you change parsing, calculation, route flow, session behavior, templates, or package output here, assume the backend-hosted copy in `Split` probably needs the same change.
+- If you are working as an internal Split agent, do not silently leave the standalone repo ahead of the hosted version without telling the user.
+- If a change is meant to stay standalone-only, say that explicitly.
+
 ## Parser Contribution Workflow
 
 When adding a parser:
@@ -231,6 +281,7 @@ An agent should try to verify:
 - wallet review still works
 - send review still works
 - draft calculations still generate
+- if you are acting as an internal Split agent, the hosted `Split` backend copy is either updated too or explicitly noted as needing sync
 
 If runtime verification is not possible, say so explicitly and describe what was verified by source review only.
 
@@ -245,4 +296,3 @@ If you are new to this repo, read files in this order:
 5. `bitcoinTax/sessionStore.js`
 6. `bitcoinTax/calculationEngine.js`
 7. `docs/parser-contribution-guide.md`
-
